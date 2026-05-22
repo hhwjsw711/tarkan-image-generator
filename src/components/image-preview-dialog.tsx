@@ -187,7 +187,7 @@ export function ImagePreviewDialog({
           <button
             onClick={() => {
               navigator.clipboard.writeText(prompt);
-              setCopied(true);
+              setCopied("final");
               setTimeout(() => setCopied(false), 2000);
             }}
             className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"

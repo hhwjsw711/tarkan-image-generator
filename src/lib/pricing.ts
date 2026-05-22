@@ -1,29 +1,27 @@
-// Gemini API pricing per model (last verified 2026-04-06)
-// https://ai.google.dev/gemini-api/docs/pricing
+// Replicate pricing per model (last verified 2026-05-22)
+// https://replicate.com/google
+// nano-banana-pro and nano-banana-2 have resolution-based tiers;
+// we use 1K pricing as the default since we don't pass resolution.
 
 export const MODEL_PRICING: Record<
   string,
   { inputPerMillion: number; outputPerImage: number }
 > = {
+  "imagen-4": {
+    inputPerMillion: 0,
+    outputPerImage: 0.04,
+  },
   "nano-banana-pro": {
-    // gemini-3-pro-image-preview (deprecated 2026-03-09)
-    inputPerMillion: 2.0,
-    outputPerImage: 0.134, // ~1K resolution
+    inputPerMillion: 0,
+    outputPerImage: 0.15,
   },
   "nano-banana-2": {
-    // gemini-3.1-flash-image-preview
-    inputPerMillion: 0.5,
-    outputPerImage: 0.067, // 1K resolution
-  },
-  "imagen-4": {
-    // imagen-4.0-generate-001 (no token input cost)
     inputPerMillion: 0,
-    outputPerImage: 0.067, // 1K resolution
+    outputPerImage: 0.067,
   },
   "nano-banana-og": {
-    // gemini-2.5-flash-image (stable/GA)
-    inputPerMillion: 0.3,
-    outputPerImage: 0.039, // 1K resolution
+    inputPerMillion: 0,
+    outputPerImage: 0.039,
   },
 };
 

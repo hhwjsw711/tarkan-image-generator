@@ -114,23 +114,6 @@ export const addImage = internalMutation({
   },
 });
 
-export const addTokenUsage = internalMutation({
-  args: {
-    generationId: v.id("generations"),
-    promptTokens: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const generation = await ctx.db.get(args.generationId);
-    if (!generation) return null;
-
-    await ctx.db.patch(args.generationId, {
-      promptTokens: (generation.promptTokens ?? 0) + args.promptTokens,
-    });
-    return null;
-  },
-});
-
 export const generateUploadUrl = mutation({
   args: {},
   returns: v.string(),

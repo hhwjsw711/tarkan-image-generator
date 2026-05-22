@@ -3,73 +3,44 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { GoogleGenAI } from "@google/genai";
+import Replicate from "replicate";
 import { Id } from "./_generated/dataModel";
 
-const GEMINI_MODELS: Record<string, string> = {
-  "imagen-4": "imagen-4.0-generate-001",
-  "nano-banana-pro": "gemini-3-pro-image-preview",
-  "nano-banana-2": "gemini-3.1-flash-image-preview",
-  "nano-banana-og": "gemini-2.5-flash-image",
+const REPLICATE_MODELS: Record<string, string> = {
+  "imagen-4": "google/imagen-4",
+  "nano-banana-pro": "google/nano-banana-pro",
+  "nano-banana-2": "google/nano-banana-2",
+  "nano-banana-og": "google/nano-banana",
 };
 
-function hasVertexConfig(): boolean {
-  // Vertex AI Express Mode (API key only) or full service account mode
-  return !!process.env.GOOGLE_VERTEX_API_KEY ||
-    !!(process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_CREDENTIALS);
+const ENHANCE_MODEL = "google/gemini-2.5-flash";
+
+function hasReplicateConfig(): boolean {
+  return !!process.env.REPLICATE_API_TOKEN;
 }
 
-function hasGeminiConfig(): boolean {
-  return !!process.env.GOOGLE_AI_API_KEY;
-}
-
-function createGenAIClient(preferVertex?: boolean): GoogleGenAI {
-  const vertexAvailable = hasVertexConfig();
-  const geminiAvailable = hasGeminiConfig();
-
-  const useVertex =
-    preferVertex === true ? vertexAvailable :
-    preferVertex === false ? !geminiAvailable && vertexAvailable :
-    vertexAvailable; // default: Vertex takes priority (original behavior)
-
-  if (useVertex && vertexAvailable) {
-    // Vertex AI Express Mode
-    if (process.env.GOOGLE_VERTEX_API_KEY) {
-      return new GoogleGenAI({
-        vertexai: true,
-        apiKey: process.env.GOOGLE_VERTEX_API_KEY,
-      });
-    }
-    // Full service account mode
-    return new GoogleGenAI({
-      vertexai: true,
-      project: process.env.GOOGLE_CLOUD_PROJECT!,
-      location: process.env.GOOGLE_CLOUD_LOCATION || "us-central1",
-      googleAuthOptions: {
-        credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS!),
-      },
-    });
-  }
-
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
+function createReplicateClient(): Replicate {
+  const apiToken = process.env.REPLICATE_API_TOKEN;
+  if (!apiToken) {
     throw new Error(
-      "Set GOOGLE_VERTEX_API_KEY (Vertex AI Express), or GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_CREDENTIALS (Vertex AI), or GOOGLE_AI_API_KEY (AI Studio). " +
-        "Add them in the Convex dashboard under Settings > Environment Variables."
+      "Set REPLICATE_API_TOKEN. Add it in the Convex dashboard under Settings > Environment Variables."
     );
   }
-  return new GoogleGenAI({ apiKey });
+  return new Replicate({ auth: apiToken });
 }
 
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (e: any) {
-      const msg = e?.message || String(e);
-      const isRateLimit = msg.includes('"code":429') || msg.includes("RESOURCE_EXHAUSTED");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isRateLimit =
+        msg.includes("429") ||
+        msg.includes("rate_limit") ||
+        msg.includes("Too many requests");
       if (!isRateLimit || attempt === maxRetries) throw e;
-      const delay = Math.pow(2, attempt) * 5000; // 5s, 10s, 20s
+      const delay = Math.pow(2, attempt) * 5000;
       await new Promise((r) => setTimeout(r, delay));
     }
   }
@@ -77,10 +48,9 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
 }
 
 async function enhancePrompt(
-  ai: GoogleGenAI,
+  replicate: Replicate,
   prompt: string
 ): Promise<string> {
-  // Skip if prompt is already very detailed
   const wordCount = prompt.trim().split(/\s+/).length;
   if (wordCount >= 120) {
     return prompt;
@@ -109,105 +79,49 @@ RULES — follow every one:
 
 6. OUTPUT FORMAT: Return ONLY the enhanced prompt text. No quotes, no labels, no explanations, no preamble, no "Enhanced prompt:" prefix. Just the prompt itself.`;
 
-  const response = await withRetry(() => ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: `${systemPrompt}\n\nUser prompt: ${prompt}` }],
-      },
-    ],
-    config: {
-      maxOutputTokens: 2000,
-    },
-  }));
+  try {
+    const output: unknown = await withRetry(
+      () =>
+        replicate.run(ENHANCE_MODEL as `${string}/${string}`, {
+          input: {
+            prompt: `${systemPrompt}\n\nUser prompt: ${prompt}`,
+            max_output_tokens: 2000,
+            temperature: 0.7,
+          },
+        }),
+      1
+    );
 
-  const enhanced = response.candidates?.[0]?.content?.parts
-    ?.filter((p) => p.text && !p.thought)
-    ?.map((p) => p.text)
-    ?.join("")
-    ?.trim();
+    let enhanced = "";
+    if (typeof output === "string") {
+      enhanced = output.trim();
+    } else if (Array.isArray(output)) {
+      enhanced = (output as string[]).join("").trim();
+    }
 
-  // Safety: if enhancement returned empty or drastically shorter, fall back
-  if (!enhanced || enhanced.length < prompt.length * 0.5) {
+    if (!enhanced || enhanced.length < prompt.length * 0.5) {
+      return prompt;
+    }
+
+    return enhanced;
+  } catch (e) {
+    console.error("Prompt enhancement failed:", e);
     return prompt;
   }
-
-  return enhanced;
 }
 
-async function generateWithGemini(
-  ai: GoogleGenAI,
-  modelName: string,
-  prompt: string,
-  refImages: { base64: string; mimeType: string; label: string }[],
-  thinkingBudget?: number,
-  isVertex?: boolean
-): Promise<{
-  images: { imageBytes: string; mimeType: string }[];
-  promptTokens: number;
-}> {
-  // Build a lookup from label to image data
-  const refMap = new Map(
-    refImages.map((ref) => [ref.label, { mimeType: ref.mimeType, data: ref.base64 }])
-  );
-
-  // Split prompt at @imgN markers and interleave actual image data inline
-  const parts: any[] = [];
-  const segments = prompt.split(/(@img\d+)/g);
-  for (const segment of segments) {
-    const img = refMap.get(segment);
-    if (img) {
-      parts.push({ inlineData: img });
-    } else if (segment) {
-      parts.push({ text: segment });
-    }
+function extractImageUrl(output: unknown): string | null {
+  if (typeof output === "string") return output;
+  if (Array.isArray(output)) {
+    if (output.length > 0 && typeof output[0] === "string") return output[0];
+    return null;
   }
-
-  // Append any reference images not mentioned in the prompt at the end
-  for (const ref of refImages) {
-    if (!prompt.includes(ref.label)) {
-      parts.push({ text: `\n[Reference image ${ref.label}]` });
-      parts.push({
-        inlineData: {
-          mimeType: ref.mimeType,
-          data: ref.base64,
-        },
-      });
-    }
+  if (output && typeof output === "object") {
+    const obj = output as Record<string, unknown>;
+    if (typeof obj.url === "string") return obj.url;
+    if (typeof obj.url === "function") return obj.url();
   }
-
-  const config: any = {
-    responseModalities: ["TEXT", "IMAGE"],
-  };
-  if (isVertex) {
-    config.seed = Math.floor(Math.random() * 2 ** 31);
-  }
-  const supportsThinking = !modelName.includes("2.5-flash-image");
-  if (thinkingBudget !== undefined && supportsThinking) {
-    config.thinkingConfig = { thinkingBudget };
-  }
-
-  const response = await withRetry(() => ai.models.generateContent({
-    model: modelName,
-    contents: [{ role: "user", parts }],
-    config,
-  }), isVertex ? 1 : 3);
-
-  const promptTokens = response.usageMetadata?.promptTokenCount ?? 0;
-
-  const images: { imageBytes: string; mimeType: string }[] = [];
-  if (response.candidates?.[0]?.content?.parts) {
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData?.data) {
-        images.push({
-          imageBytes: part.inlineData.data,
-          mimeType: part.inlineData.mimeType || "image/png",
-        });
-      }
-    }
-  }
-  return { images, promptTokens };
+  return null;
 }
 
 export const generate = action({
@@ -221,74 +135,78 @@ export const generate = action({
     referenceImageStorageIds: v.optional(v.array(v.id("_storage"))),
     keepReferenceIds: v.optional(v.array(v.id("_storage"))),
     enhancePrompt: v.optional(v.boolean()),
-    thinkingLevel: v.optional(v.union(v.literal("low"), v.literal("high"))),
     model: v.optional(v.string()),
-    provider: v.optional(v.union(v.literal("gemini"), v.literal("vertex"))),
   },
   returns: v.id("generations"),
   handler: async (ctx, args): Promise<Id<"generations">> => {
-    const useVertex = args.provider === "vertex";
-    const ai = createGenAIClient(args.provider ? useVertex : undefined);
+    const replicate = createReplicateClient();
     const selectedModel = args.model || "imagen-4";
-    const modelName = GEMINI_MODELS[selectedModel] || GEMINI_MODELS["imagen-4"];
     const isImagen = selectedModel === "imagen-4";
 
-    // Step 1: Optionally enhance the RAW user prompt (no style suffix)
     let enhancedPrompt = args.prompt;
     if (args.enhancePrompt) {
-      // Strip @imgN tags before enhancing so the LLM doesn't mangle them,
-      // then re-insert them at their original positions afterward
       const imgTagPattern = /@img\d+/g;
       const imgTags: { index: number; tag: string }[] = [];
       let match;
       while ((match = imgTagPattern.exec(args.prompt)) !== null) {
         imgTags.push({ index: match.index, tag: match[0] });
       }
-      const strippedPrompt = args.prompt.replace(imgTagPattern, "<<IMG_PLACEHOLDER>>");
-      const enhanced = await enhancePrompt(ai, strippedPrompt);
-      // Restore tags: replace placeholders back in order
+      const strippedPrompt = args.prompt.replace(
+        imgTagPattern,
+        "<<IMG_PLACEHOLDER>>"
+      );
+      const enhanced = await enhancePrompt(replicate, strippedPrompt);
       let tagIdx = 0;
       enhancedPrompt = enhanced.replace(/<<IMG_PLACEHOLDER>>/g, () => {
         return imgTags[tagIdx] ? imgTags[tagIdx++].tag : "";
       });
-      // If enhancement dropped placeholders entirely, append missing tags
       for (let i = tagIdx; i < imgTags.length; i++) {
         enhancedPrompt += ` ${imgTags[i].tag}`;
       }
     }
 
-    // Step 2: Append style suffix AFTER enhancement
     let finalPrompt = enhancedPrompt;
     if (args.styleSuffix) {
       finalPrompt = `${enhancedPrompt}, ${args.styleSuffix}`;
     }
 
-    // Get reference image data if provided
-    const refImages: { base64: string; mimeType: string; label: string }[] = [];
+    const refImageUrls: string[] = [];
+    const refStorageIds: Id<"_storage">[] = [];
     if (args.referenceImageStorageIds?.length) {
       for (let i = 0; i < args.referenceImageStorageIds.length; i++) {
-        const refBlob = await ctx.storage.get(args.referenceImageStorageIds[i]);
-        if (!refBlob) throw new Error(`Reference image @img${i + 1} not found in storage.`);
-        const refBuffer = Buffer.from(await refBlob.arrayBuffer());
-        refImages.push({
-          base64: refBuffer.toString("base64"),
-          mimeType: refBlob.type || "image/png",
-          label: `@img${i + 1}`,
-        });
+        const storageId = args.referenceImageStorageIds[i];
+        const refBlob = await ctx.storage.get(storageId);
+        if (!refBlob)
+          throw new Error(
+            `Reference image @img${i + 1} not found in storage.`
+          );
+        const url = await ctx.storage.getUrl(storageId);
+        if (!url)
+          throw new Error(
+            `Reference image @img${i + 1} URL not available.`
+          );
+        refImageUrls.push(url);
+        refStorageIds.push(storageId);
       }
     }
 
-    // Determine the actual model that will be used
     const actualModel =
-      isImagen && refImages.length === 0
+      isImagen && refImageUrls.length === 0
         ? "imagen-4"
         : isImagen
           ? "nano-banana-pro"
           : selectedModel;
 
-    // Create the generation record upfront with empty images
+    const modelId =
+      REPLICATE_MODELS[actualModel] || REPLICATE_MODELS["imagen-4"];
+
+    const cleanPrompt = finalPrompt
+      .replace(/@img\d+/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
     const generationId = await ctx.runMutation(internal.generations.create, {
-      prompt: finalPrompt,
+      prompt: cleanPrompt,
       originalPrompt: args.prompt,
       stylePreset: args.stylePreset,
       styleSuffix: args.styleSuffix,
@@ -298,104 +216,95 @@ export const generate = action({
       numberOfImages: args.numberOfImages,
       imageStorageIds: [],
       model: actualModel,
-      provider: args.provider,
+      provider: "replicate",
       referenceImageStorageIds: args.keepReferenceIds,
-      thinkingLevel: args.thinkingLevel,
     });
 
     try {
-      if (isImagen && refImages.length === 0) {
-        const aspectRatio = args.aspectRatio === "auto" ? "1:1" : args.aspectRatio;
+      const aspectRatio =
+        args.aspectRatio === "auto" ? undefined : args.aspectRatio;
 
-        const response = await withRetry(() => ai.models.generateImages({
-          model: modelName,
-          prompt: finalPrompt,
-          config: {
-            numberOfImages: args.numberOfImages,
-            aspectRatio,
-          },
-        }));
+      for (let i = 0; i < args.numberOfImages; i++) {
+        const input: Record<string, unknown> = {
+          prompt: cleanPrompt,
+        };
 
-        if (response.generatedImages) {
-          for (const generatedImage of response.generatedImages) {
-            const imageBytes = generatedImage.image?.imageBytes;
-            if (!imageBytes) continue;
-
-            const buffer = Buffer.from(imageBytes, "base64");
-            const blob = new Blob([buffer], { type: "image/png" });
-            const storageId = await ctx.storage.store(blob);
-            await ctx.runMutation(internal.generations.addImage, {
-              generationId,
-              storageId,
-            });
-          }
-        }
-      } else {
-        const geminiModel = GEMINI_MODELS[actualModel] || modelName;
-
-        let fullPrompt = finalPrompt;
-        if (args.aspectRatio !== "auto") {
-          fullPrompt += ` Output the image in ${args.aspectRatio} aspect ratio.`;
+        if (actualModel === "imagen-4") {
+          if (aspectRatio) input.aspect_ratio = aspectRatio;
+          input.safety_filter_level = "block_medium_and_above";
+        } else if (actualModel === "nano-banana-pro") {
+          if (aspectRatio) input.aspect_ratio = aspectRatio;
+          input.output_format = "png";
+          input.safety_filter_level = "block_only_high";
+          if (refImageUrls.length > 0) input.image_input = refImageUrls;
+        } else if (actualModel === "nano-banana-2") {
+          if (aspectRatio) input.aspect_ratio = aspectRatio;
+        } else if (actualModel === "nano-banana-og") {
+          input.output_format = "png";
+          if (refImageUrls.length > 0) input.image_input = refImageUrls;
         }
 
-        for (let i = 0; i < args.numberOfImages; i++) {
-          // Delay between Vertex AI calls to avoid per-minute quota limits
-          if (useVertex && i > 0) {
-            await new Promise((r) => setTimeout(r, 8000));
-          }
+        const output: unknown = await withRetry(() =>
+          replicate.run(modelId as `${string}/${string}`, { input })
+        );
 
-          const thinkingBudget = args.thinkingLevel === "high" ? 8192
-            : args.thinkingLevel === "low" ? 2048
-            : undefined;
+        const imageUrl = extractImageUrl(output);
 
-          const result = await generateWithGemini(
-            ai,
-            geminiModel,
-            fullPrompt,
-            refImages,
-            thinkingBudget,
-            useVertex
+        if (!imageUrl) {
+          console.error(`Replicate returned no image URL for ${modelId}`, JSON.stringify(output));
+          continue;
+        }
+
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+          console.error(
+            `Failed to fetch image from Replicate: ${imageResponse.status} ${imageResponse.statusText}`
           );
-
-          await ctx.runMutation(internal.generations.addTokenUsage, {
-            generationId,
-            promptTokens: result.promptTokens,
-          });
-
-          for (const img of result.images.slice(0, 1)) {
-            const buffer = Buffer.from(img.imageBytes, "base64");
-            const blob = new Blob([buffer], { type: img.mimeType });
-            const storageId = await ctx.storage.store(blob);
-            await ctx.runMutation(internal.generations.addImage, {
-              generationId,
-              storageId,
-            });
-          }
+          continue;
         }
+
+        const contentType =
+          imageResponse.headers.get("content-type") || "image/png";
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: contentType });
+        const storageId = await ctx.storage.store(blob);
+        await ctx.runMutation(internal.generations.addImage, {
+          generationId,
+          storageId,
+        });
       }
-      // Check if any images were actually generated
-      const finalGen = await ctx.runQuery(internal.generations.get, { generationId });
+
+      const finalGen = await ctx.runQuery(internal.generations.get, {
+        generationId,
+      });
       if (!finalGen || finalGen.imageStorageIds.length === 0) {
         await ctx.runMutation(internal.generations.markFailed, {
           generationId,
-          error: "No images were returned. The model may have filtered the content or failed silently. Try rephrasing your prompt.",
+          error:
+            "No images were returned. The model may have filtered the content or failed silently. Try rephrasing your prompt.",
         });
       } else {
-        await ctx.runMutation(internal.generations.markComplete, { generationId });
+        await ctx.runMutation(internal.generations.markComplete, {
+          generationId,
+        });
       }
-    } catch (e: any) {
-      const raw = e?.message || String(e);
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : String(e);
       let errorMsg: string;
 
-      if (raw.includes('"code":429') || raw.includes("RESOURCE_EXHAUSTED")) {
-        const usedVertex = args.provider === "vertex" || (!args.provider && hasVertexConfig());
-        const retryMatch = raw.match(/Please retry in (\d+h?\d*m)/);
-        const retryInfo = retryMatch ? ` Try again in ~${retryMatch[1]}.` : "";
-        errorMsg = usedVertex
-          ? `Vertex AI rate limit hit — too many requests per minute.${retryInfo} Try fewer images or wait a moment.`
-          : `Daily API quota exceeded (250 requests).${retryInfo || " Try again tomorrow."}`;
-      } else if (raw.includes("Your request couldn't be completed")) {
-        errorMsg = "The model couldn't complete this request — likely content filtering or a transient error. Try rephrasing your prompt or try again.";
+      if (raw.includes("429") || raw.includes("rate_limit")) {
+        errorMsg =
+          "Replicate rate limit hit — too many requests. Try fewer images or wait a moment.";
+      } else if (raw.includes("401") || raw.includes("Unauthorized")) {
+        errorMsg =
+          "Replicate API token is invalid. Check your REPLICATE_API_TOKEN env var.";
+      } else if (
+        raw.includes("NSFW") ||
+        raw.includes("safety") ||
+        raw.includes("filtered")
+      ) {
+        errorMsg =
+          "The model couldn't complete this request — likely content filtering. Try rephrasing your prompt.";
       } else {
         errorMsg = raw.slice(0, 500);
       }
@@ -406,7 +315,9 @@ export const generate = action({
       });
     } finally {
       if (args.referenceImageStorageIds) {
-        const keepSet = new Set((args.keepReferenceIds ?? []).map((id) => id.toString()));
+        const keepSet = new Set(
+          (args.keepReferenceIds ?? []).map((id) => id.toString())
+        );
         for (const sid of args.referenceImageStorageIds) {
           if (!keepSet.has(sid.toString())) {
             await ctx.storage.delete(sid);
@@ -422,11 +333,9 @@ export const generate = action({
 export const getAvailableProviders = action({
   args: {},
   returns: v.object({
-    gemini: v.boolean(),
-    vertex: v.boolean(),
+    replicate: v.boolean(),
   }),
-  handler: async (): Promise<{ gemini: boolean; vertex: boolean }> => ({
-    gemini: hasGeminiConfig(),
-    vertex: hasVertexConfig(),
+  handler: async (): Promise<{ replicate: boolean }> => ({
+    replicate: hasReplicateConfig(),
   }),
 });

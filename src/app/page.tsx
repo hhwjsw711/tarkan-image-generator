@@ -14,29 +14,16 @@ import { SettingsDialog } from "@/components/settings-dialog";
 export default function Home() {
   const [selectedId, setSelectedId] = useState<Id<"generations"> | null>(null);
 
-  // Provider state (lifted from PromptForm)
-  const [provider, setProvider] = useState<"gemini" | "vertex">(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("hadooken-provider") as "gemini" | "vertex") || "gemini";
-    }
-    return "gemini";
-  });
-  const [availableProviders, setAvailableProviders] = useState<{ gemini: boolean; vertex: boolean } | null>(null);
+  const [isConfigured, setIsConfigured] = useState(false);
   const checkProviders = useAction(api.images.getAvailableProviders);
-  const showProviderToggle = !!(availableProviders?.gemini && availableProviders?.vertex);
 
   useEffect(() => {
-    checkProviders().then(setAvailableProviders).catch(() => { });
+    checkProviders().then((r) => setIsConfigured(r.replicate)).catch(() => {});
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem("hadooken-provider", provider);
-  }, [provider]);
 
   const generations = useQuery(api.generations.list);
   const prevCountRef = useRef<number | undefined>(undefined);
 
-  // Auto-select the latest generation when a new one appears
   useEffect(() => {
     if (!generations) return;
 
@@ -51,13 +38,11 @@ export default function Home() {
     prevCountRef.current = currentCount;
   }, [generations]);
 
-  // Get the selected generation reactively from the query
   const selectedGeneration = useMemo(() => {
     if (!selectedId || !generations) return null;
     return generations.find((g) => g._id === selectedId) ?? null;
   }, [selectedId, generations]);
 
-  // Cost aggregates (from all generations)
   const { totalCost, monthCost, totalImages, totalRuns } = useMemo(() => {
     if (!generations) return { totalCost: 0, monthCost: 0, totalImages: 0, totalRuns: 0 };
     const now = new Date();
@@ -93,7 +78,6 @@ export default function Home() {
         referenceImageStorageIds: gen.referenceImageStorageIds?.length ? gen.referenceImageStorageIds : undefined,
         keepReferenceIds: gen.referenceImageStorageIds?.length ? gen.referenceImageStorageIds : undefined,
         enhancePrompt: gen.wasEnhanced || false,
-        thinkingLevel: gen.thinkingLevel === "low" || gen.thinkingLevel === "high" ? gen.thinkingLevel : undefined,
         model: gen.model,
       });
     } catch {
@@ -140,18 +124,14 @@ export default function Home() {
               <path d="M2861.36 360.69V218.805L2844.96 202.406H2707.71V360.69H2659.94V154.279H2696.3L2725.18 183.156H2757.98L2786.5 154.279H2864.93L2909.49 198.841V360.69H2861.36Z" fill="currentColor" />
             </svg>
             <div className="flex items-center gap-1.5">
-              <SettingsDialog
-                provider={provider}
-                onProviderChange={setProvider}
-                showProviderToggle={showProviderToggle}
-              />
+              <SettingsDialog isConfigured={isConfigured} />
               <ThemeToggle />
             </div>
           </div>
 
           {/* Create Form */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <PromptForm onGenerated={handleGenerated} provider={provider} showProviderToggle={showProviderToggle} />
+            <PromptForm onGenerated={handleGenerated} />
           </div>
         </div>
 
@@ -192,9 +172,9 @@ export default function Home() {
                 {selectedGeneration.model}
               </span>
             )}
-            {selectedGeneration?.provider === "vertex" && (
-              <span className="text-[11px] text-blue-400 px-2 py-0.5 rounded-full bg-blue-500/20">
-                Vertex AI
+            {selectedGeneration?.provider === "replicate" && (
+              <span className="text-[11px] text-green-400 px-2 py-0.5 rounded-full bg-green-500/20">
+                Replicate
               </span>
             )}
             {selectedGeneration && selectedGeneration.status === "complete" && (

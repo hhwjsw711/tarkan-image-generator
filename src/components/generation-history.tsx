@@ -262,7 +262,6 @@ export function GenerationHistory({
                       <p>
                         {gen.aspectRatio}
                         {gen.model && <> &middot; {gen.model}</>}
-                        {gen.provider === "vertex" && <> &middot; <span className="text-blue-400">Vertex</span></>}
                       </p>
                       <p>
                         {gen.promptTokens != null && (

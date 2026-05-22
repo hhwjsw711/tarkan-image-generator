@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
@@ -11,9 +11,6 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
@@ -57,8 +54,6 @@ const STYLE_PRESETS = [
 
 interface PromptFormProps {
   onGenerated: (generationId: Id<"generations">) => void;
-  provider: "gemini" | "vertex";
-  showProviderToggle: boolean;
 }
 
 interface ReferenceItem {
@@ -78,21 +73,19 @@ function ChevronDown() {
   );
 }
 
-export function PromptForm({ onGenerated, provider, showProviderToggle }: PromptFormProps) {
+export function PromptForm({ onGenerated }: PromptFormProps) {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState("imagen-4");
   const [aspectRatio, setAspectRatio] = useState("auto");
   const [numberOfImages, setNumberOfImages] = useState(1);
   const [stylePreset, setStylePreset] = useState("none");
   const [enhancePrompt, setEnhancePrompt] = useState(false);
-  const [thinkingLevel, setThinkingLevel] = useState<"none" | "low" | "high">("none");
   const [inFlightCount, setInFlightCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const [modelOpen, setModelOpen] = useState(false);
   const [aspectOpen, setAspectOpen] = useState(false);
   const [countOpen, setCountOpen] = useState(false);
-  const [thinkingOpen, setThinkingOpen] = useState(false);
 
 
   const [references, setReferences] = useState<ReferenceItem[]>([]);
@@ -111,11 +104,11 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
   const saveReference = useMutation(api.referenceImages.save);
   const generations = useQuery(api.generations.list);
 
-  const latestQuotaError = generations?.[0]?.status === "failed" &&
-    (generations[0].error?.includes("Daily API quota exceeded") ||
-      generations[0].error?.includes("Vertex AI quota exceeded"));
-  const [quotaDismissed, setQuotaDismissed] = useState(false);
-  const quotaExceeded = latestQuotaError && !quotaDismissed;
+  const latestRateLimitError = generations?.[0]?.status === "failed" &&
+    (generations[0].error?.includes("rate limit") ||
+      generations[0].error?.includes("429"));
+  const [rateLimitDismissed, setRateLimitDismissed] = useState(false);
+  const rateLimited = latestRateLimitError && !rateLimitDismissed;
 
   const hasReference = references.length > 0;
   const currentStyle = STYLE_PRESETS.find((s) => s.value === stylePreset);
@@ -314,9 +307,7 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
         referenceImageStorageIds: uploadedStorageIds.length > 0 ? uploadedStorageIds : undefined,
         keepReferenceIds: keepIds.length > 0 ? keepIds : undefined,
         enhancePrompt,
-        thinkingLevel: thinkingLevel !== "none" ? thinkingLevel : undefined,
         model,
-        provider: showProviderToggle ? provider : undefined,
       });
       onGenerated(generationId);
     } catch (err) {
@@ -449,7 +440,7 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
           )}
 
           {hasReference && model === "imagen-4" && (
-            <p className="text-[11px] text-amber-400">Imagen 4 doesn't support references. Will use Nano Banana Pro instead.</p>
+            <p className="text-[11px] text-amber-400">Imagen 4 doesn&apos;t support references. Will use Nano Banana Pro instead.</p>
           )}
         </div>
 
@@ -465,30 +456,12 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
           </div>
         </div>
 
-        {/* AI Enhance + Thinking */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button type="button" role="switch" aria-checked={enhancePrompt} onClick={() => setEnhancePrompt(!enhancePrompt)} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${enhancePrompt ? "bg-zinc-400" : "bg-zinc-700"}`}>
-              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform ${enhancePrompt ? "translate-x-4" : "translate-x-0"}`} />
-            </button>
-            <Label className="text-sm">AI Enhance</Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Label className="text-sm">Thinking</Label>
-            <DropdownMenu open={thinkingOpen} onOpenChange={setThinkingOpen}>
-              <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 text-sm hover:bg-accent transition-colors">
-                <span>{thinkingLevel === "none" ? "Off" : thinkingLevel === "low" ? "Low" : "High"}</span>
-                <ChevronDown />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuRadioGroup value={thinkingLevel} onValueChange={(v) => { if (v) { setThinkingLevel(v as "none" | "low" | "high"); setThinkingOpen(false); } }}>
-                  <DropdownMenuRadioItem value="none">Off</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="low">Low</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="high">High</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+        {/* AI Enhance */}
+        <div className="flex items-center gap-3">
+          <button type="button" role="switch" aria-checked={enhancePrompt} onClick={() => setEnhancePrompt(!enhancePrompt)} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${enhancePrompt ? "bg-zinc-400" : "bg-zinc-700"}`}>
+            <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform ${enhancePrompt ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
+          <Label className="text-sm">AI Enhance</Label>
         </div>
 
         {/* Aspect Ratio + Image Count */}
@@ -534,7 +507,7 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
       <div className="shrink-0 px-8 py-5 border-t border-border/50 space-y-3">
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {quotaExceeded && (
+        {rateLimited && (
           <div className="flex items-start gap-3 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-destructive shrink-0 mt-0.5">
               <circle cx="12" cy="12" r="10" />
@@ -542,10 +515,10 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <div className="flex-1">
-              <p className="text-sm font-medium text-destructive">Daily limit reached</p>
-              <p className="text-xs text-destructive/70 mt-0.5">API quota exceeded (250 requests). Try again tomorrow.</p>
+              <p className="text-sm font-medium text-destructive">Rate limited</p>
+              <p className="text-xs text-destructive/70 mt-0.5">Too many requests. Try again in a moment.</p>
             </div>
-            <button onClick={() => setQuotaDismissed(true)} className="text-destructive/50 hover:text-destructive shrink-0 mt-0.5">
+            <button onClick={() => setRateLimitDismissed(true)} className="text-destructive/50 hover:text-destructive shrink-0 mt-0.5">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
@@ -554,8 +527,8 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
           </div>
         )}
 
-        <Button type="submit" className="w-full h-10 text-base rounded-full" disabled={!prompt.trim() || inFlightCount >= 3 || quotaExceeded}>
-          {quotaExceeded ? "Daily limit reached" : inFlightCount >= 3 ? "Limit reached (3/3)" : hasReference ? "Edit with Reference" : "Generate"}
+        <Button type="submit" className="w-full h-10 text-base rounded-full" disabled={!prompt.trim() || inFlightCount >= 3 || rateLimited}>
+          {rateLimited ? "Rate limited" : inFlightCount >= 3 ? "Limit reached (3/3)" : hasReference ? "Edit with Reference" : "Generate"}
         </Button>
 
         {inFlightCount > 0 && (
@@ -586,16 +559,6 @@ export function PromptForm({ onGenerated, provider, showProviderToggle }: Prompt
           {hasReference && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-[11px] text-muted-foreground">
               + {references.length} ref{references.length > 1 ? "s" : ""}
-            </div>
-          )}
-          {thinkingLevel !== "none" && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-[11px] text-muted-foreground">
-              + Thinking ({thinkingLevel})
-            </div>
-          )}
-          {showProviderToggle && provider === "vertex" && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-[11px] text-blue-400">
-              Vertex AI
             </div>
           )}
         </div>
