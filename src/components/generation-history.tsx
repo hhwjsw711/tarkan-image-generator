@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useTranslations } from "next-intl";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import Image from "next/image";
@@ -19,24 +20,6 @@ import {
 } from "@/components/ui/pagination";
 
 const PAGE_SIZE = 50;
-
-function timeAgo(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  const mins = Math.floor(diff / 60000);
-  const hrs = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (hrs < 24) return `${hrs}h ago`;
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 14) return "last week";
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  if (days < 60) return "last month";
-  return `${Math.floor(days / 30)}mo ago`;
-}
 
 function HistoryThumbnails({
   storageIds,
@@ -95,8 +78,30 @@ export function GenerationHistory({
   selectedId,
   onSelect,
 }: GenerationHistoryProps) {
+  const t = useTranslations("GenerationHistory");
   const generations = useQuery(api.generations.list);
   const removeGeneration = useMutation(api.generations.remove);
+
+  const timeAgo = useMemo(() => {
+    const ago = (timestamp: number): string => {
+      const now = Date.now();
+      const diff = now - timestamp;
+      const mins = Math.floor(diff / 60000);
+      const hrs = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+
+      if (mins < 1) return t("justNow");
+      if (mins < 60) return t("minutesAgo", { count: mins });
+      if (hrs < 24) return t("hoursAgo", { count: hrs });
+      if (days === 1) return t("yesterday");
+      if (days < 7) return t("daysAgo", { count: days });
+      if (days < 14) return t("lastWeek");
+      if (days < 30) return t("weeksAgo", { count: Math.floor(days / 7) });
+      if (days < 60) return t("lastMonth");
+      return t("monthsAgo", { count: Math.floor(days / 30) });
+    };
+    return ago;
+  }, [t]);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -150,7 +155,7 @@ export function GenerationHistory({
   if (generations.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center p-4">
-        No generations yet.
+        {t("noGenerations")}
       </p>
     );
   }
@@ -190,7 +195,7 @@ export function GenerationHistory({
             checked={allChecked}
             onChange={selectAll}
           />
-          {hasChecked ? `${checkedIds.size} selected` : "Select all"}
+          {hasChecked ? t("selected", { count: checkedIds.size }) : t("selectAll")}
         </div>
         {hasChecked && (
           <Button
@@ -200,7 +205,7 @@ export function GenerationHistory({
             onClick={deleteSelected}
             disabled={isDeleting}
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? t("deleting") : t("delete")}
           </Button>
         )}
       </div>
@@ -253,10 +258,10 @@ export function GenerationHistory({
                   <p className="text-sm font-medium truncate">{gen.prompt}</p>
                   {gen.status === "failed" ? (
                     <p className="text-xs text-destructive mt-1 line-clamp-2">
-                      {gen.error || "Failed"}
+                      {gen.error || t("failed")}
                     </p>
                   ) : gen.status === "generating" ? (
-                    <p className="text-xs text-yellow-500 mt-1">Generating...</p>
+                    <p className="text-xs text-yellow-500 mt-1">{t("generating")}</p>
                   ) : (
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                       <p>
@@ -265,7 +270,7 @@ export function GenerationHistory({
                       </p>
                       <p>
                         {gen.promptTokens != null && (
-                          <>{gen.promptTokens.toLocaleString()} tokens &middot; </>
+                          <>{gen.promptTokens.toLocaleString()} {t("tokens")} &middot; </>
                         )}
                         {`$${calculateGenerationCost(gen.model, gen.promptTokens, gen.imageStorageIds.length).toFixed(3)}`}
                         {" "}&middot;{" "}

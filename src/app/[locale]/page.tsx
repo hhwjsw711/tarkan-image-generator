@@ -2,24 +2,20 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useAction, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+import { useTranslations } from "next-intl";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import { calculateGenerationCost } from "@/lib/pricing";
 import { PromptForm } from "@/components/prompt-form";
 import { ImageGallery } from "@/components/image-gallery";
 import { GenerationHistory } from "@/components/generation-history";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SettingsDialog } from "@/components/settings-dialog";
+import { LanguageToggle } from "@/components/language-toggle";
 
 export default function Home() {
+  const t = useTranslations("HomePage");
+  const mt = useTranslations("Models");
   const [selectedId, setSelectedId] = useState<Id<"generations"> | null>(null);
-
-  const [isConfigured, setIsConfigured] = useState(false);
-  const checkProviders = useAction(api.images.getAvailableProviders);
-
-  useEffect(() => {
-    checkProviders().then((r) => setIsConfigured(r.replicate)).catch(() => {});
-  }, []);
 
   const generations = useQuery(api.generations.list);
   const prevCountRef = useRef<number | undefined>(undefined);
@@ -124,7 +120,7 @@ export default function Home() {
               <path d="M2861.36 360.69V218.805L2844.96 202.406H2707.71V360.69H2659.94V154.279H2696.3L2725.18 183.156H2757.98L2786.5 154.279H2864.93L2909.49 198.841V360.69H2861.36Z" fill="currentColor" />
             </svg>
             <div className="flex items-center gap-1.5">
-              <SettingsDialog isConfigured={isConfigured} />
+              <LanguageToggle />
               <ThemeToggle />
             </div>
           </div>
@@ -138,14 +134,14 @@ export default function Home() {
         {/* Sidebar 2: History */}
         <div className="w-96 shrink-0 flex flex-col min-h-0">
           <div className="flex items-center justify-between px-7 h-24 shrink-0 border-b border-border/50">
-            <h2 className="text-sm font-semibold">History</h2>
+            <h2 className="text-sm font-semibold">{t("history")}</h2>
             {generations && (
               <div className="text-right">
                 <span className="text-[11px] text-muted-foreground tabular-nums">
-                  {totalImages} images &middot; {totalRuns} runs
+                  {totalImages} {t("images")} &middot; {totalRuns} {t("runs")}
                 </span>
                 <div className="text-[11px] text-muted-foreground tabular-nums">
-                  ${monthCost.toFixed(2)} this month &middot; ${totalCost.toFixed(2)} total
+                  ${monthCost.toFixed(2)} {t("thisMonth")} &middot; ${totalCost.toFixed(2)} {t("total")}
                 </div>
               </div>
             )}
@@ -164,12 +160,12 @@ export default function Home() {
         {/* Gallery Header */}
         <div className="px-7 h-24 border-b border-border/50 shrink-0 flex items-center justify-between gap-4">
           <h2 className="text-sm font-semibold truncate">
-            {selectedGeneration ? selectedGeneration.prompt : "Gallery"}
+            {selectedGeneration ? selectedGeneration.prompt : t("gallery")}
           </h2>
           <div className="flex items-center gap-2 shrink-0">
             {selectedGeneration?.model && (
               <span className="text-[11px] text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                {selectedGeneration.model}
+                {mt(selectedGeneration.model as "imagen-4" | "nano-banana-pro" | "nano-banana-2" | "nano-banana-og")}
               </span>
             )}
             {selectedGeneration?.provider === "replicate" && (
@@ -194,7 +190,7 @@ export default function Home() {
                     <path d="M21 3v5h-5" />
                   </svg>
                 )}
-                {rerunning ? "Rerunning..." : "Rerun"}
+                {rerunning ? t("rerunning") : t("rerun")}
               </button>
             )}
           </div>
@@ -238,7 +234,7 @@ export default function Home() {
                 <path d="m2 20 5.586-5.586a2 2 0 0 1 2.828 0L16 20" />
                 <path d="m14 16 2.586-2.586a2 2 0 0 1 2.828 0L22 16" />
               </svg>
-              <p className="text-sm">Generate or select an image to view it here</p>
+              <p className="text-sm">{t("generateOrSelect")}</p>
             </div>
           )}
         </div>

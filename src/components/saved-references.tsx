@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useTranslations } from "next-intl";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import {
@@ -19,6 +20,7 @@ interface SavedReferencesProps {
 }
 
 export function SavedReferences({ onSelect, selectedStorageIds, variant = "link" }: SavedReferencesProps) {
+  const t = useTranslations("SavedReferences");
   const [open, setOpen] = useState(false);
   const references = useQuery(api.referenceImages.list);
   const removeRef = useMutation(api.referenceImages.remove);
@@ -38,17 +40,17 @@ export function SavedReferences({ onSelect, selectedStorageIds, variant = "link"
         {variant === "box" ? (
           <>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 17a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.9a2 2 0 0 1-1.69-.9l-.81-1.2a2 2 0 0 0-1.67-.9H8a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2Z" /><path d="M2 8v11a2 2 0 0 0 2 2h14" /></svg>
-            <span className="text-[11px]">{count > 0 ? `Refs (${count})` : "Refs"}</span>
+            <span className="text-[11px]">{count > 0 ? t("refsCount", { count }) : t("refs")}</span>
           </>
         ) : (
-          count > 0 ? `Browse saved references (${count})` : "No saved references"
+          count > 0 ? t("browseSaved", { count }) : t("noSaved")
         )}
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Saved References</DialogTitle>
+            <DialogTitle>{t("savedReferencesTitle")}</DialogTitle>
           </DialogHeader>
 
           {!references ? (
@@ -59,8 +61,8 @@ export function SavedReferences({ onSelect, selectedStorageIds, variant = "link"
             </div>
           ) : references.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
-              <p className="text-sm">No saved references yet.</p>
-              <p className="text-xs mt-1">Upload a reference image and click the save icon to add one.</p>
+              <p className="text-sm">{t("emptyTitle")}</p>
+              <p className="text-xs mt-1">{t("emptyHint")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-4 py-4">
@@ -80,7 +82,7 @@ export function SavedReferences({ onSelect, selectedStorageIds, variant = "link"
 
           <div className="flex justify-end pt-2">
             <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
-              Done
+              {t("done")}
             </Button>
           </div>
         </DialogContent>

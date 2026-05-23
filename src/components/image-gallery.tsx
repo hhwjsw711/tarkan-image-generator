@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
+import { useTranslations } from "next-intl";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
@@ -25,6 +26,7 @@ interface ImageGalleryProps {
 }
 
 export function ImageGallery({ storageIds, numberOfImages, prompt, model, originalPrompt, stylePreset, styleSuffix, wasEnhanced, enhancedPrompt, status, error, aspectRatio, promptTokens, thinkingLevel, referenceImageStorageIds }: ImageGalleryProps) {
+  const t = useTranslations("ImageGallery");
   const urls = useQuery(api.generations.getImageUrls, {
     storageIds: storageIds.length > 0 ? storageIds : [],
   });
@@ -60,7 +62,7 @@ export function ImageGallery({ storageIds, numberOfImages, prompt, model, origin
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
-        <p className="text-sm text-destructive">{error || "Generation failed"}</p>
+        <p className="text-sm text-destructive">{error || t("generationFailed")}</p>
       </div>
     );
   }
@@ -86,7 +88,7 @@ export function ImageGallery({ storageIds, numberOfImages, prompt, model, origin
             >
               <img
                 src={url}
-                alt={`Generated: ${prompt}`}
+                alt={t("generatedAlt", { prompt })}
                 className="w-full h-auto object-cover"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
@@ -146,20 +148,20 @@ export function ImageGallery({ storageIds, numberOfImages, prompt, model, origin
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <p className="text-sm text-destructive">{error || "Generation failed"}</p>
+          <p className="text-sm text-destructive">{error || t("generationFailed")}</p>
         </div>
       )}
 
       {isStillGenerating && (
         <p className="text-xs text-muted-foreground text-center mt-4">
-          Generating {storageIds.length} / {numberOfImages} images...
+          {t("generating", { current: storageIds.length, total: numberOfImages })}
         </p>
       )}
 
       {/* Reference images used */}
       {refUrls && refUrls.length > 0 && (
         <div className="mt-8 space-y-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Reference images used</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("referenceImagesUsed")}</p>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {refUrls.map((refUrl, i) => refUrl && (
               <div key={i} className="shrink-0 space-y-1">

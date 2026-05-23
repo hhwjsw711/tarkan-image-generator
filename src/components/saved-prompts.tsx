@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useTranslations } from "next-intl";
 import { api } from "../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,7 @@ interface SavedPromptsProps {
 }
 
 export function SavedPrompts({ onSelect }: SavedPromptsProps) {
+  const t = useTranslations("SavedPrompts");
   const [open, setOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const prompts = useQuery(api.savedPrompts.list);
@@ -42,7 +44,7 @@ export function SavedPrompts({ onSelect }: SavedPromptsProps) {
           onClick={() => setOpen(true)}
           className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer underline underline-offset-2"
         >
-          {count > 0 ? `Saved (${count})` : "Save prompts"}
+          {count > 0 ? t("savedCount", { count }) : t("savePrompts")}
         </button>
       </div>
 
@@ -51,13 +53,13 @@ export function SavedPrompts({ onSelect }: SavedPromptsProps) {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle>Saved Prompts</DialogTitle>
+              <DialogTitle>{t("savedPromptsTitle")}</DialogTitle>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => { setOpen(false); setSaveOpen(true); }}
               >
-                Save New
+                {t("saveNew")}
               </Button>
             </div>
           </DialogHeader>
@@ -70,8 +72,8 @@ export function SavedPrompts({ onSelect }: SavedPromptsProps) {
             </div>
           ) : prompts.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
-              <p className="text-sm">No saved prompts yet.</p>
-              <p className="text-xs mt-1">Click &quot;Save New&quot; to save a prompt for reuse.</p>
+              <p className="text-sm">{t("emptyTitle")}</p>
+              <p className="text-xs mt-1">{t("emptyHint")}</p>
             </div>
           ) : (
             <div className="space-y-2 py-4 max-h-96 overflow-auto">
@@ -114,32 +116,32 @@ export function SavedPrompts({ onSelect }: SavedPromptsProps) {
       <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Save Prompt</DialogTitle>
+            <DialogTitle>{t("savePromptTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t("name")}</label>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. 3D Logo Render"
+                placeholder={t("namePlaceholder")}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Prompt</label>
+              <label className="text-sm font-medium">{t("prompt")}</label>
               <textarea
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
-                placeholder="Enter your reusable prompt..."
+                placeholder={t("promptPlaceholder")}
                 rows={4}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-none"
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSaveOpen(false)}>Cancel</Button>
-              <Button size="sm" onClick={handleSave} disabled={!newName.trim() || !newText.trim()}>Save</Button>
+              <Button variant="outline" size="sm" onClick={() => setSaveOpen(false)}>{t("cancel")}</Button>
+              <Button size="sm" onClick={handleSave} disabled={!newName.trim() || !newText.trim()}>{t("save")}</Button>
             </div>
           </div>
         </DialogContent>

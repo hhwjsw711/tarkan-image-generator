@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { calculateGenerationCost } from "@/lib/pricing";
@@ -42,6 +43,7 @@ export function ImagePreviewDialog({
   onClose,
   onNavigate,
 }: ImagePreviewDialogProps) {
+  const t = useTranslations("ImagePreviewDialog");
   const [copied, setCopied] = useState<"original" | "final" | false>(false);
 
   const copyText = (text: string, which: "original" | "final") => {
@@ -119,7 +121,7 @@ export function ImagePreviewDialog({
       {/* Sidebar */}
       <div className="relative w-80 bg-card border-l border-border/50 flex flex-col shrink-0">
         <div className="flex items-center justify-between px-5 py-4">
-          <h3 className="text-sm font-semibold">Details</h3>
+          <h3 className="text-sm font-semibold">{t("details")}</h3>
           <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
           </button>
@@ -133,12 +135,12 @@ export function ImagePreviewDialog({
             <>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Prompt</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("yourPrompt")}</p>
                   <button
                     onClick={() => copyText(displayOriginal, "original")}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   >
-                    {copied === "original" ? "Copied!" : "Copy"}
+                    {copied === "original" ? t("copied") : t("copy")}
                   </button>
                 </div>
                 <p className="text-sm leading-relaxed">{displayOriginal}</p>
@@ -147,7 +149,7 @@ export function ImagePreviewDialog({
               {stylePreset && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium uppercase tracking-wider">
-                    <span className="text-blue-400">+ Style: {stylePreset}</span>
+                    <span className="text-blue-400">{t("styleLabel", { style: stylePreset })}</span>
                   </p>
                   {styleSuffix && (
                     <p className="text-xs text-muted-foreground leading-relaxed">{styleSuffix}</p>
@@ -158,27 +160,27 @@ export function ImagePreviewDialog({
               {wasEnhanced && (
                 <div className="space-y-2">
                   <p className="text-xs font-medium uppercase tracking-wider">
-                    <span className="text-purple-400">+ AI Enhanced</span>
+                    <span className="text-purple-400">{t("aiEnhanced")}</span>
                   </p>
                   {enhancedPrompt && enhancedPrompt !== originalPrompt && (
                     <p className="text-xs text-muted-foreground leading-relaxed">{enhancedPrompt}</p>
                   )}
                   {enhancedPrompt && enhancedPrompt === originalPrompt && (
-                    <p className="text-xs text-muted-foreground/50 leading-relaxed italic">No changes — prompt was already specific</p>
+                    <p className="text-xs text-muted-foreground/50 leading-relaxed italic">{t("noChanges")}</p>
                   )}
                 </div>
               )}
 
               {!wasEnhanced && !stylePreset && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Final Prompt</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("finalPrompt")}</p>
                   <p className="text-sm leading-relaxed">{prompt}</p>
                 </div>
               )}
             </>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Prompt</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("prompt")}</p>
               <p className="text-sm leading-relaxed">{prompt}</p>
             </div>
           )}
@@ -196,56 +198,56 @@ export function ImagePreviewDialog({
               <rect width="14" height="14" x="8" y="8" rx="2" />
               <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
             </svg>
-            {copied ? "Copied!" : "Copy final prompt"}
+            {copied ? t("copied") : t("copyFinalPrompt")}
           </button>
 
           {/* Settings */}
           <div className="space-y-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("details")}</p>
             <div className="space-y-2">
               {model && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Model</span>
+                  <span className="text-muted-foreground">{t("model")}</span>
                   <span>{model}</span>
                 </div>
               )}
               {aspectRatio && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Aspect Ratio</span>
+                  <span className="text-muted-foreground">{t("aspectRatio")}</span>
                   <span>{aspectRatio}</span>
                 </div>
               )}
               {thinkingLevel && thinkingLevel !== "none" && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Thinking</span>
+                  <span className="text-muted-foreground">{t("thinking")}</span>
                   <span className="capitalize">{thinkingLevel}</span>
                 </div>
               )}
               {promptTokens != null && promptTokens > 0 && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Tokens</span>
+                  <span className="text-muted-foreground">{t("tokens")}</span>
                   <span>{promptTokens.toLocaleString()}</span>
                 </div>
               )}
               {imageCount != null && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Images</span>
+                  <span className="text-muted-foreground">{t("images")}</span>
                   <span>{imageCount}</span>
                 </div>
               )}
               {model && imageCount != null && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Cost</span>
+                  <span className="text-muted-foreground">{t("cost")}</span>
                   <span>${calculateGenerationCost(model, promptTokens ?? undefined, imageCount).toFixed(3)}</span>
                 </div>
               )}
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Format</span>
+                <span className="text-muted-foreground">{t("format")}</span>
                 <span>PNG</span>
               </div>
               {hasMultiple && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Viewing</span>
+                  <span className="text-muted-foreground">{t("viewing")}</span>
                   <span>{currentIndex! + 1} / {urls.length}</span>
                 </div>
               )}
@@ -255,7 +257,7 @@ export function ImagePreviewDialog({
           {/* Reference Images */}
           {referenceUrls && referenceUrls.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">References used</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("referencesUsed")}</p>
               <div className="flex gap-2 flex-wrap">
                 {referenceUrls.map((refUrl, i) => (
                   <div key={i} className="space-y-1">
@@ -271,8 +273,8 @@ export function ImagePreviewDialog({
         </div>
 
         <div className="p-5 space-y-2 border-t border-border/50">
-          <Button onClick={handleDownload} className="w-full" size="sm">Download</Button>
-          <Button onClick={onClose} variant="outline" className="w-full" size="sm">Close</Button>
+          <Button onClick={handleDownload} className="w-full" size="sm">{t("download")}</Button>
+          <Button onClick={onClose} variant="outline" className="w-full" size="sm">{t("close")}</Button>
         </div>
       </div>
     </div>

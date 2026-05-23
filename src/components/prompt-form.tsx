@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { useTranslations } from "next-intl";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,10 @@ function ChevronDown() {
 }
 
 export function PromptForm({ onGenerated }: PromptFormProps) {
+  const t = useTranslations("PromptForm");
+  const mt = useTranslations("Models");
+  const st = useTranslations("StylePresets");
+  const at = useTranslations("AspectRatios");
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState("imagen-4");
   const [aspectRatio, setAspectRatio] = useState("auto");
@@ -120,8 +125,8 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
 
   const addFileReference = (file: File) => {
     if (!file.type.startsWith("image/")) return;
-    if (file.size > 20 * 1024 * 1024) { setError("Image must be under 20MB."); return; }
-    if (references.length >= MAX_REFS) { setError(`Maximum ${MAX_REFS} reference images.`); return; }
+    if (file.size > 20 * 1024 * 1024) { setError(t("imageUnder20MB")); return; }
+    if (references.length >= MAX_REFS) { setError(t("maxReferences", { max: MAX_REFS })); return; }
     setError(null);
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -141,7 +146,7 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
   };
 
   const addSavedReference = (storageId: Id<"_storage">, name: string, url: string) => {
-    if (references.length >= MAX_REFS) { setError(`Maximum ${MAX_REFS} reference images.`); return; }
+    if (references.length >= MAX_REFS) { setError(t("maxReferences", { max: MAX_REFS })); return; }
     const alreadyAdded = references.some((r) => r.source === "saved" && r.storageId === storageId);
     if (alreadyAdded) {
       setReferences((prev) => prev.filter((r) => !(r.source === "saved" && r.storageId === storageId)));
@@ -311,7 +316,7 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
       });
       onGenerated(generationId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate images");
+      setError(err instanceof Error ? err.message : t("failedToGenerate"));
     } finally {
       setInFlightCount((c) => Math.max(0, c - 1));
     }
@@ -322,10 +327,10 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
       <div className="flex-1 overflow-auto p-8 space-y-9">
         {/* Model */}
         <div>
-          <Label className="mb-3 block">Model</Label>
+          <Label className="mb-3 block">{t("model")}</Label>
           <DropdownMenu open={modelOpen} onOpenChange={setModelOpen}>
             <DropdownMenuTrigger className="flex items-center justify-between w-full rounded-lg bg-muted px-4 py-2.5 text-sm hover:bg-accent transition-colors">
-              <span>{currentModel?.label}</span>
+              <span>{mt(currentModel!.value as "imagen-4" | "nano-banana-pro" | "nano-banana-2" | "nano-banana-og")}</span>
               <ChevronDown />
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -333,8 +338,8 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
                 {MODELS.map((m) => (
                   <DropdownMenuRadioItem key={m.value} value={m.value}>
                     <div>
-                      <p className="font-medium">{m.label}</p>
-                      <p className="text-[11px] text-muted-foreground">{m.description}</p>
+                      <p className="font-medium">{mt(m.value as "imagen-4" | "nano-banana-pro" | "nano-banana-2" | "nano-banana-og")}</p>
+                      <p className="text-[11px] text-muted-foreground">{mt(`${m.value}-desc` as "imagen-4-desc" | "nano-banana-pro-desc" | "nano-banana-2-desc" | "nano-banana-og-desc")}</p>
                     </div>
                   </DropdownMenuRadioItem>
                 ))}
@@ -346,14 +351,14 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
         {/* Prompt */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label htmlFor="prompt">Prompt</Label>
+            <Label htmlFor="prompt">{t("prompt")}</Label>
             <SavedPrompts onSelect={(text) => setPrompt(text)} />
           </div>
           <div className="relative">
             <Textarea
               ref={textareaRef}
               id="prompt"
-              placeholder="Describe the image you want to generate... Use @img1, @img2 etc. to reference images"
+              placeholder={t("promptPlaceholder")}
               value={prompt}
               onChange={handlePromptChange}
               onKeyDown={handleTextareaKeyDown}
@@ -386,7 +391,7 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
         {/* Reference Images */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>References (optional)</Label>
+            <Label>{t("references")}</Label>
             {references.length > 0 && (
               <span className="text-[11px] text-muted-foreground">{references.length}/{MAX_REFS}</span>
             )}
@@ -405,7 +410,7 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
                 </button>
                 <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   {ref.source === "file" && (
-                    <button type="button" onClick={() => saveToLibrary(index)} title="Save to library" className="h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs hover:bg-black/80 transition-colors cursor-pointer">
+                    <button type="button" onClick={() => saveToLibrary(index)} title={t("saveToLibrary")} className="h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs hover:bg-black/80 transition-colors cursor-pointer">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
                     </button>
                   )}
@@ -424,7 +429,7 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
                 className="size-20 shrink-0 rounded-lg bg-muted hover:bg-accent transition-colors flex flex-col items-center justify-center gap-2 text-muted-foreground/70 cursor-pointer"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                <span className="text-[10px]">Add</span>
+                <span className="text-[10px]">{t("add")}</span>
               </button>
             )}
 
@@ -436,21 +441,21 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
           </div>
 
           {references.length === 0 && (
-            <p className="text-[11px] text-muted-foreground">Upload, paste (Cmd+V), or pick from saved refs</p>
+            <p className="text-[11px] text-muted-foreground">{t("uploadHint")}</p>
           )}
 
           {hasReference && model === "imagen-4" && (
-            <p className="text-[11px] text-amber-400">Imagen 4 doesn&apos;t support references. Will use Nano Banana Pro instead.</p>
+            <p className="text-[11px] text-amber-400">{t("imagen4Warning")}</p>
           )}
         </div>
 
         {/* Style Preset */}
         <div className="space-y-3">
-          <Label>Style</Label>
+          <Label>{t("style")}</Label>
           <div className="flex flex-wrap gap-2">
             {STYLE_PRESETS.map((style) => (
               <button key={style.value} type="button" onClick={() => setStylePreset(style.value)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${stylePreset === style.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`}>
-                {style.label}
+                {st(style.value as "none" | "photorealistic" | "3d-render" | "illustration" | "oil-painting" | "watercolor" | "anime" | "pixel-art" | "cinematic" | "isometric" | "pencil-sketch" | "dot-matrix")}
               </button>
             ))}
           </div>
@@ -461,22 +466,22 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
           <button type="button" role="switch" aria-checked={enhancePrompt} onClick={() => setEnhancePrompt(!enhancePrompt)} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${enhancePrompt ? "bg-zinc-400" : "bg-zinc-700"}`}>
             <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform ${enhancePrompt ? "translate-x-4" : "translate-x-0"}`} />
           </button>
-          <Label className="text-sm">AI Enhance</Label>
+          <Label className="text-sm">{t("aiEnhance")}</Label>
         </div>
 
         {/* Aspect Ratio + Image Count */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="mb-3 block">Aspect Ratio</Label>
+            <Label className="mb-3 block">{t("aspectRatio")}</Label>
             <DropdownMenu open={aspectOpen} onOpenChange={setAspectOpen}>
               <DropdownMenuTrigger className="flex items-center justify-between w-full rounded-lg bg-muted px-4 py-2.5 text-sm hover:bg-accent transition-colors">
-                <span>{ASPECT_RATIOS.find((r) => r.value === aspectRatio)?.label}</span>
+                <span>{at(aspectRatio as "auto" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4")}</span>
                 <ChevronDown />
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuRadioGroup value={aspectRatio} onValueChange={(v) => { if (v) { setAspectRatio(v); setAspectOpen(false); } }}>
                   {ASPECT_RATIOS.map((r) => (
-                    <DropdownMenuRadioItem key={r.value} value={r.value}>{r.label}</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem key={r.value} value={r.value}>{at(r.value as "auto" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4")}</DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
@@ -484,16 +489,16 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
           </div>
 
           <div>
-            <Label className="mb-3 block">Images</Label>
+            <Label className="mb-3 block">{t("images")}</Label>
             <DropdownMenu open={countOpen} onOpenChange={setCountOpen}>
               <DropdownMenuTrigger className="flex items-center justify-between w-full rounded-lg bg-muted px-4 py-2.5 text-sm hover:bg-accent transition-colors">
-                <span>{numberOfImages} {numberOfImages === 1 ? "image" : "images"}</span>
+                <span>{numberOfImages} {numberOfImages === 1 ? t("image") : t("imagesLabel")}</span>
                 <ChevronDown />
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuRadioGroup value={String(numberOfImages)} onValueChange={(v) => { if (v) { setNumberOfImages(parseInt(v)); setCountOpen(false); } }}>
                   {IMAGE_COUNTS.map((n) => (
-                    <DropdownMenuRadioItem key={n} value={String(n)}>{n} {n === 1 ? "image" : "images"}</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem key={n} value={String(n)}>{n} {n === 1 ? t("image") : t("imagesLabel")}</DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
@@ -515,8 +520,8 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <div className="flex-1">
-              <p className="text-sm font-medium text-destructive">Rate limited</p>
-              <p className="text-xs text-destructive/70 mt-0.5">Too many requests. Try again in a moment.</p>
+              <p className="text-sm font-medium text-destructive">{t("rateLimitTitle")}</p>
+              <p className="text-xs text-destructive/70 mt-0.5">{t("rateLimitBody")}</p>
             </div>
             <button onClick={() => setRateLimitDismissed(true)} className="text-destructive/50 hover:text-destructive shrink-0 mt-0.5">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -528,7 +533,7 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
         )}
 
         <Button type="submit" className="w-full h-10 text-base rounded-full" disabled={!prompt.trim() || inFlightCount >= 3 || rateLimited}>
-          {rateLimited ? "Rate limited" : inFlightCount >= 3 ? "Limit reached (3/3)" : hasReference ? "Edit with Reference" : "Generate"}
+          {rateLimited ? t("rateLimited") : inFlightCount >= 3 ? t("limitReached") : hasReference ? t("editWithReference") : t("generate")}
         </Button>
 
         {inFlightCount > 0 && (
@@ -537,28 +542,28 @@ export function PromptForm({ onGenerated }: PromptFormProps) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
-            {inFlightCount} generation{inFlightCount > 1 ? "s" : ""} in progress...
+            {inFlightCount} {inFlightCount > 1 ? t("generationsInProgress") : t("generationInProgress")} {t("inProgress")}
           </div>
         )}
 
         {/* Model indicator */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-[11px] text-muted-foreground">
-            {currentModel?.label ?? model}
+            {mt(currentModel!.value as "imagen-4" | "nano-banana-pro" | "nano-banana-2" | "nano-banana-og")}
           </div>
           {stylePreset !== "none" && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-[11px] text-muted-foreground">
-              + {currentStyle?.label}
+              + {st(stylePreset as "photorealistic" | "3d-render" | "illustration" | "oil-painting" | "watercolor" | "anime" | "pixel-art" | "cinematic" | "isometric" | "pencil-sketch" | "dot-matrix")}
             </div>
           )}
           {enhancePrompt && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-[11px] text-muted-foreground">
-              + AI Enhance
+              {t("aiEnhanceChip")}
             </div>
           )}
           {hasReference && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-[11px] text-muted-foreground">
-              + {references.length} ref{references.length > 1 ? "s" : ""}
+              {t("refCount", { count: references.length })}
             </div>
           )}
         </div>
