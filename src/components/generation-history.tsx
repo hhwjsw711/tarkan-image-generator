@@ -79,6 +79,7 @@ export function GenerationHistory({
   onSelect,
 }: GenerationHistoryProps) {
   const t = useTranslations("GenerationHistory");
+  const at = useTranslations("AspectRatios");
   const generations = useQuery(api.generations.list);
   const removeGeneration = useMutation(api.generations.remove);
 
@@ -264,10 +265,10 @@ export function GenerationHistory({
                     <p className="text-xs text-yellow-500 mt-1">{t("generating")}</p>
                   ) : (
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                      <p>
-                        {gen.aspectRatio}
-                        {gen.model && <> &middot; {gen.model}</>}
-                      </p>
+                       <p>
+                         {at(gen.aspectRatio as "auto" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4")}
+                         {gen.model && <> &middot; {gen.model}</>}
+                       </p>
                       <p>
                         {gen.promptTokens != null && (
                           <>{gen.promptTokens.toLocaleString()} {t("tokens")} &middot; </>

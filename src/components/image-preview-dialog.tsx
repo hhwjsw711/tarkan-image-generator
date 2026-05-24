@@ -44,6 +44,7 @@ export function ImagePreviewDialog({
   onNavigate,
 }: ImagePreviewDialogProps) {
   const t = useTranslations("ImagePreviewDialog");
+  const at = useTranslations("AspectRatios");
   const [copied, setCopied] = useState<"original" | "final" | false>(false);
 
   const copyText = (text: string, which: "original" | "final") => {
@@ -211,12 +212,12 @@ export function ImagePreviewDialog({
                   <span>{model}</span>
                 </div>
               )}
-              {aspectRatio && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">{t("aspectRatio")}</span>
-                  <span>{aspectRatio}</span>
-                </div>
-              )}
+               {aspectRatio && (
+                 <div className="flex justify-between text-xs">
+                   <span className="text-muted-foreground">{t("aspectRatio")}</span>
+                   <span>{at(aspectRatio as "auto" | "1:1" | "16:9" | "9:16" | "4:3" | "3:4")}</span>
+                 </div>
+               )}
               {thinkingLevel && thinkingLevel !== "none" && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">{t("thinking")}</span>
